@@ -202,8 +202,9 @@ class Media extends Field
 
         $modelCollectionName = $this->meta['modelCollectionName'];
 
+        ray($attribute);
         if($modelCollectionName) {
-            $this->removeDeletedMedia($data, $model->getMediaByModelCollectionName($attribute));
+            $this->removeDeletedMedia($data, $model->getMediaByModelCollectionName($modelCollectionName));
         }else {
             $this->removeDeletedMedia($data, $model->getMedia($attribute));
         }
@@ -213,7 +214,7 @@ class Media extends Field
 
         // this is where the magic happens
         if($modelCollectionName) {
-            $this->addExistingMedia($request, $data, $model, $attribute, $model->getMediaByModelCollectionName($attribute), $requestAttribute, $modelCollectionName);
+            $this->addExistingMedia($request, $data, $model, $attribute, $model->getMediaByModelCollectionName($modelCollectionName), $requestAttribute, $modelCollectionName);
         }else {
             $this->addExistingMedia($request, $data, $model, $attribute, $model->getMedia($attribute), $requestAttribute, $modelCollectionName);
         }
@@ -272,7 +273,7 @@ class Media extends Field
                 }
 
                 $media->setModelCollectionName($modelCollectionName);
-                $media = $media->toMediaCollection($collection, '', $modelCollectionName);
+                $media = $media->toMediaCollection($collection);
 
                 // fill custom properties for recently created media
                 $this->fillMediaCustomPropertiesFromRequest($request, $media, $index, $collection, $requestAttribute);
