@@ -46,10 +46,10 @@ class MediaController extends Controller
             $query->whereNotIn('collection_name', $hideCollections);
         }
 
-        ray($request);
 
         // ok but we don't want to show any media that is not in the wanted collection
-        $query->where('collection_name', $request->input('collection_name', 'default'));
+        // this does not work we cannot compile the ff javascript code
+//        $query->where('collection_name', $request->input('collection_name', 'default'));
 
         $results = $query->paginate($perPage);
 
