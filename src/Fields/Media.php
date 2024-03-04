@@ -16,16 +16,20 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class Media extends Field
 {
-    use HandlesCustomPropertiesTrait, HandlesConversionsTrait, HandlesExistingMediaTrait;
+    use HandlesConversionsTrait, HandlesCustomPropertiesTrait, HandlesExistingMediaTrait;
 
     public $component = 'advanced-media-library-field';
 
     protected $setFileNameCallback;
+
     protected $setNameCallback;
+
     protected $serializeMediaCallback;
+
     protected $responsive = false;
 
     protected $collectionMediaRules = [];
+
     protected $singleMediaRules = [];
 
     protected $customHeaders = [];
@@ -72,8 +76,7 @@ class Media extends Field
     /**
      * Set the responsive mode, which enables the creation of responsive images on upload
      *
-     * @param boolean $responsive
-     *
+     * @param  bool  $responsive
      * @return $this
      */
     public function withResponsiveImages($responsive = true)
@@ -86,8 +89,7 @@ class Media extends Field
     /**
      * Set a filename callable callback
      *
-     * @param callable $callback
-     *
+     * @param  callable  $callback
      * @return $this
      */
     public function setFileName($callback)
@@ -100,8 +102,7 @@ class Media extends Field
     /**
      * Set a name callable callback
      *
-     * @param callable $callback
-     *
+     * @param  callable  $callback
      * @return $this
      */
     public function setName($callback)
@@ -114,7 +115,6 @@ class Media extends Field
     /**
      * Set the maximum accepted file size for the frontend in kBs
      *
-     * @param int $maxSize
      *
      * @return $this
      */
@@ -127,7 +127,6 @@ class Media extends Field
      * Validate the file's type on the frontend side
      * Example values for the array: 'image', 'video', 'image/jpeg'
      *
-     * @param array $types
      *
      * @return $this
      */
@@ -139,7 +138,6 @@ class Media extends Field
     /**
      * Set the expiry time for temporary urls.
      *
-     * @param Carbon $until
      *
      * @return $this
      */
@@ -174,7 +172,7 @@ class Media extends Field
                 ]);
 
                 Validator::make($requestToValidateSingleMedia, [
-                    $requestAttribute => array_merge($this->defaultValidatorRules, (array)$this->singleMediaRules),
+                    $requestAttribute => array_merge($this->defaultValidatorRules, (array) $this->singleMediaRules),
                 ])->validate();
             });
 
@@ -200,29 +198,27 @@ class Media extends Field
         // - the create one will be the global collection
         // - and we add a method to give model_collection_name to the field
 
+        $collectionName = $this->meta['collectionName'] ?? $attribute;
         $modelCollectionName = $this->meta['modelCollectionName'];
 
-        ray($attribute);
         if($modelCollectionName) {
-            $this->removeDeletedMedia($data, $model->getMediaByModelCollectionName($modelCollectionName));
+            $this->removeDeletedMedia($data, $model->getMediaByModelCollectionName($modelCollectionName), $model);
         }else {
-            $this->removeDeletedMedia($data, $model->getMedia($attribute));
+            $this->removeDeletedMedia($data, $model->getMedia($collectionName), $model);
         }
 
-        // ok this will just add the media without saving anything really in a way
-        $this->addNewMedia($request, $data, $model, $attribute, $requestAttribute, $modelCollectionName);
+//         ok this will just add the media without saving anything really in a way
+        $this->addNewMedia($request, $data, $model, $collectionName, $requestAttribute, $modelCollectionName);
 
         // this is where the magic happens
-        if($modelCollectionName) {
-            $this->addExistingMedia($request, $data, $model, $attribute, $model->getMediaByModelCollectionName($modelCollectionName), $requestAttribute, $modelCollectionName);
-        }else {
-            $this->addExistingMedia($request, $data, $model, $attribute, $model->getMedia($attribute), $requestAttribute, $modelCollectionName);
+        if ($modelCollectionName) {
+            $this->addExistingMedia($request, $data, $model, $collectionName, $model->getMediaByModelCollectionName($modelCollectionName), $requestAttribute);
+        } else {
+            $this->addExistingMedia($request, $data, $model, $collectionName, $model->getMedia($collectionName), $requestAttribute);
         }
 
         //$this->setOrder($remainingIds->union($newIds)->union($existingIds)->sortKeys()->all());
     }
-
-
 
     private function setOrder($ids)
     {
@@ -232,7 +228,6 @@ class Media extends Field
 
     private function addNewMedia(NovaRequest $request, $data, Model $model, string $collection, string $requestAttribute, string $modelCollectionName): Collection
     {
-
         return collect($data)
             ->filter(function ($value) {
                 // New files will come in as UploadedFile objects,
@@ -282,28 +277,26 @@ class Media extends Field
             });
     }
 
-    private function removeDeletedMedia($data, Collection $medias): Collection
+    private function removeDeletedMedia($data, Collection $medias, Model $model): void
     {
-        $remainingIds = collect($data)->filter(function ($value) {
+        $modelCollectionName = $this->meta['modelCollectionName'];
+
+        $wantedIds = collect($data)->filter(function ($value) {
             // New files will come in as UploadedFile objects,
             // whereas Vapor-uploaded files will come in as arrays.
             return !$value instanceof UploadedFile
                 && !is_array($value);
         });
+        $existingIds = $model->getMediaByModelCollectionName($modelCollectionName)->pluck('id');
 
-        $medias->pluck('id')->diff($remainingIds)->each(function ($id) use ($medias) {
-            /** @var Media $media */
-            if ($media = $medias->where('id', $id)->first()) {
-                $media->delete();
-            }
-        });
-
-        return $remainingIds->intersect($medias->pluck('id'));
+        //determine which media we need to detach, if any
+        $idsToDetach = $existingIds->diff($wantedIds);
+        $model->media()->detach($idsToDetach);
     }
 
     public function resolve($resource, $attribute = null)
     {
-        $collectionName = $attribute ?? $this->attribute;
+        $collectionName = $this->meta['collectionName'] ?? $attribute ?? $this->attribute;
         $modelCollectionName = $this->meta['modelCollectionName'];
 
         if ($collectionName === 'ComputedField') {
@@ -311,17 +304,17 @@ class Media extends Field
         }
 
         if ($modelCollectionName) {
-            $medias =  $resource->getMediaByModelCollectionName($modelCollectionName);
+            $medias = $resource->getMediaByModelCollectionName($modelCollectionName);
         } else {
             $medias = $resource->getMedia($collectionName);
         }
 
         $this->value = $medias->map(function (\Spatie\MediaLibrary\MediaCollections\Models\Media $media) {
-                return array_merge($this->serializeMedia($media), ['__media_urls__' => $this->getMediaUrls($media)]);
-            })->values();
-    //        if ($collectionName) {
-//            $this->checkCollectionIsMultiple($resource, $collectionName);
-//        }
+            return array_merge($this->serializeMedia($media), ['__media_urls__' => $this->getMediaUrls($media)]);
+        })->values();
+        //        if ($collectionName) {
+        //            $this->checkCollectionIsMultiple($resource, $collectionName);
+        //        }
     }
 
     /**
@@ -338,16 +331,16 @@ class Media extends Field
         return $this->getConversionUrls($media);
     }
 
-//    protected function checkCollectionIsMultiple(Model $resource, string $collectionName)
-//    {
-//        $resource->registerMediaCollections();
-//        $isSingle = collect($resource->mediaCollections)
-//            ->where('name', $collectionName)
-//            ->first()
-//            ->singleFile ?? false;
-//
-//        $this->withMeta(['multiple' => ! $isSingle]);
-//    }
+    //    protected function checkCollectionIsMultiple(Model $resource, string $collectionName)
+    //    {
+    //        $resource->registerMediaCollections();
+    //        $isSingle = collect($resource->mediaCollections)
+    //            ->where('name', $collectionName)
+    //            ->first()
+    //            ->singleFile ?? false;
+    //
+    //        $this->withMeta(['multiple' => ! $isSingle]);
+    //    }
 
     public function serializeMedia(Model $media): array
     {
@@ -374,6 +367,11 @@ class Media extends Field
     public function modelCollectionName(string $modelCollectionName): self
     {
         return $this->withMeta(compact('modelCollectionName'));
+    }
+
+    public function collectionName(string $collectionName): self
+    {
+        return $this->withMeta(compact('collectionName'));
     }
 
     /**
@@ -408,13 +406,14 @@ class Media extends Field
      * The file is uploaded using a pre-signed S3 URL, via Vapor.store.
      * This method will use addMediaFromUrl(), passing it the
      * temporary location of the file.
+     *
      * @throws \Spatie\MediaLibrary\MediaCollections\Exceptions\FileCannotBeAdded
      */
     private function makeMediaFromVaporUpload(array $file, Model $model): FileAdder
     {
         $disk = config('filesystems.default');
 
-        $disk = config('filesystems.disks.' . $disk . 'driver') === 's3' ? $disk : 's3';
+        $disk = config('filesystems.disks.'.$disk.'driver') === 's3' ? $disk : 's3';
 
         $url = Storage::disk($disk)->temporaryUrl($file['key'], Carbon::now()->addHour());
 
