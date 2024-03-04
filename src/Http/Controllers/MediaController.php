@@ -37,14 +37,19 @@ class MediaController extends Controller
 
             $query->latest();
         }
-        
+
         if (!empty($hideCollections)) {
             if (!is_array($hideCollections)) {
                 $hideCollections = [ $hideCollections ];
             }
-            
+
             $query->whereNotIn('collection_name', $hideCollections);
         }
+
+        ray($request);
+
+        // ok but we don't want to show any media that is not in the wanted collection
+        $query->where('collection_name', $request->input('collection_name', 'default'));
 
         $results = $query->paginate($perPage);
 

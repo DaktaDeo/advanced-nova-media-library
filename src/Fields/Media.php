@@ -195,11 +195,33 @@ class Media extends Field
 
     protected function handleMedia(NovaRequest $request, $model, $attribute, $data, $requestAttribute)
     {
-        $this->removeDeletedMedia($data, $model->getMedia($attribute));
-        $this->addNewMedia($request, $data, $model, $attribute, $requestAttribute);
-        $this->addExistingMedia($request, $data, $model, $attribute, $model->getMedia($attribute), $requestAttribute);
-//        $this->setOrder($remainingIds->union($newIds)->union($existingIds)->sortKeys()->all());
+        // ok by default $attribute is the collectionname, but this does not work with our central media collection
+        // so our fields will have 2 attributes required:
+        // - the create one will be the global collection
+        // - and we add a method to give model_collection_name to the field
+
+        $modelCollectionName = $this->meta['modelCollectionName'];
+
+        if($modelCollectionName) {
+            $this->removeDeletedMedia($data, $model->getMediaByModelCollectionName($attribute));
+        }else {
+            $this->removeDeletedMedia($data, $model->getMedia($attribute));
+        }
+
+        // ok this will just add the media without saving anything really in a way
+        $this->addNewMedia($request, $data, $model, $attribute, $requestAttribute, $modelCollectionName);
+
+        // this is where the magic happens
+        if($modelCollectionName) {
+            $this->addExistingMedia($request, $data, $model, $attribute, $model->getMediaByModelCollectionName($attribute), $requestAttribute, $modelCollectionName);
+        }else {
+            $this->addExistingMedia($request, $data, $model, $attribute, $model->getMedia($attribute), $requestAttribute, $modelCollectionName);
+        }
+
+        //$this->setOrder($remainingIds->union($newIds)->union($existingIds)->sortKeys()->all());
     }
+
+
 
     private function setOrder($ids)
     {
@@ -207,7 +229,7 @@ class Media extends Field
         $mediaClass::setNewOrder($ids);
     }
 
-    private function addNewMedia(NovaRequest $request, $data, Model $model, string $collection, string $requestAttribute): Collection
+    private function addNewMedia(NovaRequest $request, $data, Model $model, string $collection, string $requestAttribute, string $modelCollectionName): Collection
     {
 
         return collect($data)
@@ -215,7 +237,7 @@ class Media extends Field
                 // New files will come in as UploadedFile objects,
                 // whereas Vapor-uploaded files will come in as arrays.
                 return $value instanceof UploadedFile || is_array($value);
-            })->map(function ($file, int $index) use ($request, $model, $collection, $requestAttribute) {
+            })->map(function ($file, int $index) use ($request, $model, $collection, $requestAttribute, $modelCollectionName) {
                 if ($file instanceof UploadedFile) {
                     $media = $model->addMedia($file)->withCustomProperties($this->customProperties);
 
@@ -249,7 +271,8 @@ class Media extends Field
                     );
                 }
 
-                $media = $media->toMediaCollection($collection);
+                $media->setModelCollectionName($modelCollectionName);
+                $media = $media->toMediaCollection($collection, '', $modelCollectionName);
 
                 // fill custom properties for recently created media
                 $this->fillMediaCustomPropertiesFromRequest($request, $media, $index, $collection, $requestAttribute);
@@ -280,17 +303,22 @@ class Media extends Field
     public function resolve($resource, $attribute = null)
     {
         $collectionName = $attribute ?? $this->attribute;
+        $modelCollectionName = $this->meta['modelCollectionName'];
 
         if ($collectionName === 'ComputedField') {
             $collectionName = call_user_func($this->computedCallback, $resource);
         }
 
-        $this->value = $resource->getMedia($collectionName)
-            ->map(function (\Spatie\MediaLibrary\MediaCollections\Models\Media $media) {
+        if ($modelCollectionName) {
+            $medias =  $resource->getMediaByModelCollectionName($modelCollectionName);
+        } else {
+            $medias = $resource->getMedia($collectionName);
+        }
+
+        $this->value = $medias->map(function (\Spatie\MediaLibrary\MediaCollections\Models\Media $media) {
                 return array_merge($this->serializeMedia($media), ['__media_urls__' => $this->getMediaUrls($media)]);
             })->values();
-
-//        if ($collectionName) {
+    //        if ($collectionName) {
 //            $this->checkCollectionIsMultiple($resource, $collectionName);
 //        }
     }
@@ -340,6 +368,11 @@ class Media extends Field
     public function single(): self
     {
         return $this->withMeta(['multiple' => false]);
+    }
+
+    public function modelCollectionName(string $modelCollectionName): self
+    {
+        return $this->withMeta(compact('modelCollectionName'));
     }
 
     /**
