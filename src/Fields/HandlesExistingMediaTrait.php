@@ -20,7 +20,7 @@ trait HandlesExistingMediaTrait
     }
 
 
-    private function addExistingMedia(NovaRequest $request, $data, Model $model, string $collection, Collection $medias, string $requestAttribute, string $modelCollectionName): Collection
+    private function addExistingMedia(NovaRequest $request, $data, Model $model, string $collection, Collection $medias, string $requestAttribute): Collection
     {
         // data will be a mixed type, it will be the id of the media if we are linking existing media
         // or it will be an instance of UploadedFile if we are uploading a new file
@@ -31,10 +31,14 @@ trait HandlesExistingMediaTrait
                 return !($value instanceof UploadedFile);
             });
 
+        $modelCollectionName = $this->meta['modelCollectionName'];
+
         $model->media()->syncWithoutDetaching($ids);
 
         // update the pivot data
-        $model->media->each(function ($media) use ($modelCollectionName) {
+        $model->media()
+            ->whereNull('model_collection_name')->get()
+            ->each(function ($media) use ($modelCollectionName) {
             $media->pivot->model_collection_name = $modelCollectionName;
             $media->pivot->save();
         });
