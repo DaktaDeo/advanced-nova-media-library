@@ -2,9 +2,9 @@
 
 namespace Ebess\AdvancedNovaMediaLibrary\Fields;
 
+use Illuminate\Database\Eloquent\Model;
 use Laravel\Nova\Fields\Field;
 use Laravel\Nova\Http\Requests\NovaRequest;
-use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\FileBag;
@@ -34,10 +34,10 @@ trait HandlesCustomPropertiesTrait
     /**
      * @param  \Laravel\Nova\Http\Requests\NovaRequest  $request
      * @param  string  $requestAttribute  The form attribute of the media field.
-     * @param  \Spatie\MediaLibrary\HasMedia  $model  The model which has associated media.
+     * @param  $model  The model which has associated media.
      * @param  string  $collection  The selected media collection.
      */
-    private function fillCustomPropertiesFromRequest(NovaRequest $request, string $requestAttribute, HasMedia $model, string $collection): void
+    private function fillCustomPropertiesFromRequest(NovaRequest $request, string $requestAttribute, Model $model, string $collection): void
     {
         // If we are dealing with nested resources or multiple panels, media fields are prefixed.
         $key = str_replace($collection, '__media__.'.$collection, $requestAttribute);

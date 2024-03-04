@@ -29,6 +29,7 @@ trait HandlesConversionsTrait
 
     public function getConversionUrls(\Spatie\MediaLibrary\MediaCollections\Models\Media $media): array
     {
+        // not supported
         return [
             // original needed several purposes like cropping
             '__original__' => $media->getFullUrl(),
