@@ -31,7 +31,6 @@ trait HandlesExistingMediaTrait
                 return !($value instanceof UploadedFile);
             });
 
-        ray($ids);
         $model->media()->syncWithoutDetaching($ids);
         return $model->media->pluck('id');
     }
@@ -42,7 +41,7 @@ trait HandlesExistingMediaTrait
 //        ray($addedMediaIds)->green()->label('addedMediaIds');
 
         // if we link existing files this will be an array of ids, if we upload a new file this will be the file data
-        ray($data)->green()->label('data');
+//        ray($data)->green()->label('data');
 //        ray($requestAttribute)->green()->label('requestAttribute');
 //        ray($collection)->green()->label('collection');
 //        ray($model)->green()->label('model');
