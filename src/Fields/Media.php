@@ -4,14 +4,13 @@ namespace Ebess\AdvancedNovaMediaLibrary\Fields;
 
 // @TODO Rule contract is deprecated since laravel/framework v10.0, replace with ValidationRule once min version is 10.
 use Illuminate\Contracts\Validation\Rule;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Nova\Fields\Field;
 use Laravel\Nova\Http\Requests\NovaRequest;
-use Spatie\MediaLibrary\HasMedia;
-use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -156,11 +155,6 @@ class Media extends Field
         return $this->withMeta(['uploadsToVapor' => $uploadsToVapor]);
     }
 
-    /**
-     * @param HasMedia $model
-     * @param mixed $requestAttribute
-     * @param mixed $attribute
-     */
     protected function fillAttributeFromRequest(NovaRequest $request, $requestAttribute, $model, $attribute)
     {
         $key = str_replace($attribute, '__media__.'.$attribute, $requestAttribute);
@@ -201,10 +195,10 @@ class Media extends Field
 
     protected function handleMedia(NovaRequest $request, $model, $attribute, $data, $requestAttribute)
     {
-        $remainingIds = $this->removeDeletedMedia($data, $model->getMedia($attribute));
-        $newIds = $this->addNewMedia($request, $data, $model, $attribute, $requestAttribute);
-        $existingIds = $this->addExistingMedia($request, $data, $model, $attribute, $model->getMedia($attribute), $requestAttribute);
-        $this->setOrder($remainingIds->union($newIds)->union($existingIds)->sortKeys()->all());
+        $this->removeDeletedMedia($data, $model->getMedia($attribute));
+        $this->addNewMedia($request, $data, $model, $attribute, $requestAttribute);
+        $this->addExistingMedia($request, $data, $model, $attribute, $model->getMedia($attribute), $requestAttribute);
+//        $this->setOrder($remainingIds->union($newIds)->union($existingIds)->sortKeys()->all());
     }
 
     private function setOrder($ids)
@@ -213,7 +207,7 @@ class Media extends Field
         $mediaClass::setNewOrder($ids);
     }
 
-    private function addNewMedia(NovaRequest $request, $data, HasMedia $model, string $collection, string $requestAttribute): Collection
+    private function addNewMedia(NovaRequest $request, $data, Model $model, string $collection, string $requestAttribute): Collection
     {
 
         return collect($data)
@@ -283,10 +277,6 @@ class Media extends Field
         return $remainingIds->intersect($medias->pluck('id'));
     }
 
-    /**
-     * @param HasMedia|InteractsWithMedia $resource
-     * @param null $attribute
-     */
     public function resolve($resource, $attribute = null)
     {
         $collectionName = $attribute ?? $this->attribute;
@@ -300,9 +290,9 @@ class Media extends Field
                 return array_merge($this->serializeMedia($media), ['__media_urls__' => $this->getMediaUrls($media)]);
             })->values();
 
-        if ($collectionName) {
-            $this->checkCollectionIsMultiple($resource, $collectionName);
-        }
+//        if ($collectionName) {
+//            $this->checkCollectionIsMultiple($resource, $collectionName);
+//        }
     }
 
     /**
@@ -319,21 +309,18 @@ class Media extends Field
         return $this->getConversionUrls($media);
     }
 
-    /**
-     * @param HasMedia|InteractsWithMedia $resource
-     */
-    protected function checkCollectionIsMultiple(HasMedia $resource, string $collectionName)
-    {
-        $resource->registerMediaCollections();
-        $isSingle = collect($resource->mediaCollections)
-            ->where('name', $collectionName)
-            ->first()
-            ->singleFile ?? false;
+//    protected function checkCollectionIsMultiple(Model $resource, string $collectionName)
+//    {
+//        $resource->registerMediaCollections();
+//        $isSingle = collect($resource->mediaCollections)
+//            ->where('name', $collectionName)
+//            ->first()
+//            ->singleFile ?? false;
+//
+//        $this->withMeta(['multiple' => ! $isSingle]);
+//    }
 
-        $this->withMeta(['multiple' => ! $isSingle]);
-    }
-
-    public function serializeMedia(\Spatie\MediaLibrary\MediaCollections\Models\Media $media): array
+    public function serializeMedia(Model $media): array
     {
         if ($this->serializeMediaCallback) {
             return call_user_func($this->serializeMediaCallback, $media);
@@ -343,11 +330,16 @@ class Media extends Field
     }
 
     /**
-     * @deprecated not needed, field recognizes single/multi file media by itself
+     * field recognizes single/multi file media by itself -> reverted this change, we need this
      */
     public function multiple(): self
     {
-        return $this;
+        return $this->withMeta(['multiple' => true]);
+    }
+
+    public function single(): self
+    {
+        return $this->withMeta(['multiple' => false]);
     }
 
     /**
@@ -384,7 +376,7 @@ class Media extends Field
      * temporary location of the file.
      * @throws \Spatie\MediaLibrary\MediaCollections\Exceptions\FileCannotBeAdded
      */
-    private function makeMediaFromVaporUpload(array $file, HasMedia $model): FileAdder
+    private function makeMediaFromVaporUpload(array $file, Model $model): FileAdder
     {
         $disk = config('filesystems.default');
 
