@@ -46,6 +46,9 @@ class MediaController extends Controller
             $query->whereNotIn('collection_name', $hideCollections);
         }
 
+        //do not include private media
+        $query->where('is_private', false);
+
 
         // ok but we don't want to show any media that is not in the wanted collection
         // this does not work we cannot compile the ff javascript code
