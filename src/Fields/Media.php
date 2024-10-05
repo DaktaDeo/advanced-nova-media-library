@@ -309,8 +309,13 @@ class Media extends Field
             $medias = $resource->getMedia($collectionName);
         }
 
+        ray($medias)->green()->label('medias');
+
         $this->value = $medias->map(function (\Spatie\MediaLibrary\MediaCollections\Models\Media $media) {
-            return array_merge($this->serializeMedia($media), ['__media_urls__' => $this->getMediaUrls($media)]);
+            return array_merge($this->serializeMedia($media), [
+                'uuid' => $media->uuid,
+                '__media_urls__' => $this->getMediaUrls($media),
+            ]);
         })->values();
         //        if ($collectionName) {
         //            $this->checkCollectionIsMultiple($resource, $collectionName);
